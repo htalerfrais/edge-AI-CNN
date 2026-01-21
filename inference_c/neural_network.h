@@ -4,6 +4,10 @@
 #ifndef NEURAL_NETWORK_H
 #define NEURAL_NETWORK_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -49,5 +53,10 @@ float relu(float x);
  * Trouve l'indice de la valeur maximale (Prediction finale)
  */
 int get_prediction(float *output);
+
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // NEURAL_NETWORK_H

@@ -16,7 +16,7 @@
 int main() {
     // 1. Chemins
     const char* model_path = "../training/Hector/models/mlp_model.txt";
-    std::string image_path = "/Work/ProjectRepo/edge-AI-CNN/data/mnist_digit/3/digit_3_4.bmp";
+    std::string image_path = "../data/mnist_digit/3/digit_3_4.bmp";
 
     // 2. Chargement du modèle
     MLPModel* model = load_mlp_model(model_path);
