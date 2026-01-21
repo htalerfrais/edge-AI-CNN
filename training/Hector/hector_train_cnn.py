@@ -6,19 +6,21 @@ import torch.nn.functional as F
 import torchvision
 import torchvision.transforms as transforms
 import PIL.Image as Image
+import os
 
 torch.random.manual_seed(0)
 
 class CNN(nn.Module):
-    def __init__(self, num_classes):
+    def __init__(self):
         super(CNN, self).__init__()
+        self.num_classes = 10
         self.layer1 = nn.Sequential(
             nn.Conv2d(1, 16, kernel_size=5, stride=2, padding=2),
             nn.ReLU())
         self.layer2 = nn.Sequential(
             nn.Conv2d(16, 32, kernel_size=5, stride=2, padding=2),
             nn.ReLU())
-        self.fc = nn.Linear(7*7*32, num_classes)
+        self.fc = nn.Linear(7*7*32, self.num_classes)
         
     def forward(self, x):
         out = self.layer1(x)
@@ -29,7 +31,7 @@ class CNN(nn.Module):
 
 # instanciate model CNN
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-model = CNN(10).to(device)
+model = CNN().to(device)
 
 # Load MNIST dataset
 # transform is going to be used when we load the dataset to get it in the right format and normalize it
@@ -127,6 +129,14 @@ def test_model(model, test_loader, criterion):
     return test_loss, accuracy
 
 
+def save_weights(model, file_name):
+    if not os.path.exists('models'):
+        os.makedirs('models')
+    path = os.path.join("models", file_name)
+    torch.save(model.state_dict(), path)
+    print(f"Poids du modèle CNN sauvegardés avec succès dans : {path}")    
+    
+
 
 # call training and testing
 
@@ -135,3 +145,5 @@ if __name__ == "__main__" :
     train_model(model, train_loader, criterion, optimizer, num_epochs=5)
     print("\nStarting testing...")
     test_loss, test_accuracy = test_model(model, test_loader, criterion)
+    
+    save_weights(model, "cnn_model.pt")

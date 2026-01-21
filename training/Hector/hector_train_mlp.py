@@ -5,7 +5,6 @@ from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 import os
-import scikit-learn
 
 # Check for GPU (Cuda), Mac Silicon (MPS), or fallback to CPU
 device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
@@ -81,7 +80,7 @@ def save_weights(model, file_name):
         os.makedirs('models')
     path = os.path.join("models", file_name)
     torch.save(model.state_dict(), path)
-    print(f"Poids du modèle sauvegardés avec succès dans : {path}")    
+    print(f"Poids du modèle MLP sauvegardés avec succès dans : {path}")    
     
 
 
