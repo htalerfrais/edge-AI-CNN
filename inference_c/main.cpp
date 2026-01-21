@@ -7,7 +7,6 @@
 
 #include <iostream>
 #include <vector>
-#include "neural_network.h"
 
 #include <iostream>
 #include <opencv2/opencv.hpp>
