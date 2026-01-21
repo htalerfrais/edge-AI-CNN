@@ -6,8 +6,22 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 import numpy as np
 import os
-from hector_train_mlp import MinimalMLP
+# from hector_train_mlp import MinimalMLP
 
+
+class MinimalMLP(nn.Module):
+    def __init__(self):
+        super(MinimalMLP, self).__init__()
+        self.flatten = nn.Flatten()
+        self.layers = nn.Sequential(
+            nn.Linear(28 * 28, 512),
+            nn.ReLU(),
+            nn.Linear(512, 10)
+        )
+
+    def forward(self, x):
+        x = self.flatten(x)
+        return self.layers(x)
 
 def evaluate_local_dataset(model_path, data_dir):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
