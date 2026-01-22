@@ -8,7 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY main.cpp Makefile neural_network.c neural_network.h mlp_model.txt ./
+COPY main.cpp Makefile neural_network_mlp.c neural_network_mlp.h mlp_model.txt ./
 RUN make
 
 ENTRYPOINT ["./app"]

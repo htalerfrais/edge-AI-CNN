@@ -1,8 +1,8 @@
 // contient les prototypes de fonctions
 // contient la structure necessaire pour stocker les poids du modèle
 
-#ifndef NEURAL_NETWORK_H
-#define NEURAL_NETWORK_H
+#ifndef NEURAL_NETWORK_MLP_H
+#define NEURAL_NETWORK_MLP_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -59,4 +59,4 @@ int get_prediction(float *output);
 }
 #endif
 
-#endif // NEURAL_NETWORK_H
+#endif // NEURAL_NETWORK_MLP_H
