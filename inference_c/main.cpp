@@ -39,6 +39,11 @@ int main() {
     // 5. Inférence
     float scores[10];
     forward_pass(model, input, scores);
+    
+    for(int i = 0; i < 10; i++) {
+        std::cout << "Score " << i << " = " << scores[i] << std::endl;
+    }
+
     int result = get_prediction(scores);
 
     // 6. Affichage
