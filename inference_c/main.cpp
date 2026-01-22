@@ -19,21 +19,18 @@ int main() {
         return -1;
     }
 
-    // 3. Prétraitement Minimaliste (Pipeline MNIST)
-    cv::Mat processed;
-    // Inversion + Seuil automatique
-    cv::threshold(img, processed, 128, 255, cv::THRESH_BINARY_INV | cv::THRESH_OTSU);
-    // Redimensionnement vers 20x20
-    cv::resize(processed, processed, cv::Size(20, 20));
-    // Centrage dans un cadre 28x28 noir
-    cv::Mat canvas = cv::Mat::zeros(28, 28, CV_8UC1);
-    processed.copyTo(canvas(cv::Rect(4, 4, 20, 20)));
+
+    // 3. Prétraitement 
+    cv::Mat resized;
+    // Redimensionnement direct en 28x28
+    cv::resize(img, resized, cv::Size(28, 28), 0, 0, cv::INTER_AREA);
+    
 
     // 4. Normalisation [-1.0, 1.0] vers le tableau d'entrée
     float input[784];
     for (int i = 0; i < 784; i++) {
-        float val = canvas.data[i] / 255.0f;
-        input[i] = (val - 0.5f) / 0.5f;
+        float val = resized.data[i] / 255.0f;
+        input[i] = (val - 0.1307f) / 0.3081f;
     }
 
     // 5. Inférence
