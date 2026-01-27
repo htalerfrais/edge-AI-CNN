@@ -7,8 +7,16 @@ import torchvision
 import torchvision.transforms as transforms
 import PIL.Image as Image
 import os
+from torch.utils.data import ConcatDataset, DataLoader, random_split
+
 
 torch.random.manual_seed(0)
+
+# --- CONFIGURATION & MODÈLE ---
+torch.random.manual_seed(0)
+DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+PERSO_DATA_PATH = "../../data/mnist_digit/" # À adapter
+BATCH_SIZE = 64
 
 class CNN(nn.Module):
     def __init__(self):
@@ -29,29 +37,80 @@ class CNN(nn.Module):
         return out
 
 
+# ---  CALCUL DES STATISTIQUES GLOBALES ---
+
+def get_global_stats():
+    # Transform minimal pour calcul
+    base_tf = transforms.Compose([
+        transforms.Grayscale(),
+        transforms.Resize((28, 28)),
+        transforms.ToTensor()
+    ])
+    
+    mnist_raw = torchvision.datasets.MNIST(root='./data', train=True, download=True, transform=base_tf)
+    perso_raw = torchvision.datasets.ImageFolder(root=PERSO_DATA_PATH, transform=base_tf)
+    
+    # On split pour ne calculer que sur la partie "train" du perso
+    train_len = int(0.8 * len(perso_raw))
+    perso_train_raw, _ = random_split(perso_raw, [train_len, len(perso_raw) - train_len])
+    
+    loader = DataLoader(ConcatDataset([mnist_raw, perso_train_raw]), batch_size=1024)
+    
+    mean = 0.
+    std = 0.
+    nb_samples = 0
+    for data, _ in loader:
+        batch_samples = data.size(0)
+        data = data.view(batch_samples, data.size(1), -1)
+        mean += data.mean(2).sum(0)
+        std += data.std(2).sum(0)
+        nb_samples += batch_samples
+
+    return mean / nb_samples, std / nb_samples
+
+
+
+# --- DATASETS FINAUX ---
+# transform with normalisation adapted to concatenated dataset
+
+print("Calcul des statistiques globales...")
+mean_val, std_val = get_global_stats()
+print(f"Stats calculées : Mean={mean_val.item():.4f}, Std={std_val.item():.4f} \n !! à appliquer aussi pour l'inférence C !!")
+
+final_tf = transforms.Compose([
+    transforms.Grayscale(),
+    transforms.Resize((28, 28)),
+    transforms.ToTensor(),
+    transforms.Normalize((mean_val.item(),), (std_val.item(),))
+])
+
+# Chargement MNIST
+mnist_train = torchvision.datasets.MNIST(root='./data', train=True, transform=final_tf)
+
+# Chargement & Split Perso
+perso_full = torchvision.datasets.ImageFolder(root=PERSO_DATA_PATH, transform=final_tf)
+train_size = int(0.8 * len(perso_full))
+perso_train, perso_test = random_split(perso_full, [train_size, len(perso_full) - train_size],
+                                       generator=torch.Generator().manual_seed(0))
+
+# Concaténation + Oversampling (Perso x50 pour équilibrer face aux 60k MNIST)
+train_dataset = ConcatDataset([mnist_train] + [perso_train] * 50)
+train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
+test_loader = DataLoader(perso_test, batch_size=BATCH_SIZE, shuffle=False)
+
+
+
+
 # instanciate model CNN
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 model = CNN().to(device)
-
-# Load MNIST dataset
-# transform is going to be used when we load the dataset to get it in the right format and normalize it
-transform = transforms.Compose([
-    transforms.ToTensor(),
-    transforms.Normalize((0.1307,), (0.3081,))  # MNIST mean and std well known (dont have to compute them here because famous dataset)
-])
-
-# we load famous datasets thanks to torchvision.dataset, using transform predefined
-train_dataset = torchvision.datasets.MNIST(root='./data', train=True, download=True, transform=transform)
-test_dataset = torchvision.datasets.MNIST(root='./data', train=False, download=True, transform=transform)
-
-# we instanciate dataloaders, with the batch size we want
-train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=64, shuffle=True)
-test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=64, shuffle=False)
 
 # Definition of loss and optimizer
 criterion = nn.CrossEntropyLoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
+
+
 
 
 # Def training loop
