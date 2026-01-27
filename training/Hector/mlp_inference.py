@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 # from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 import numpy as np
 import os
-# from hector_train_mlp import MinimalMLP
+# from train_mlp import MinimalMLP
 
 
 class MinimalMLP(nn.Module):

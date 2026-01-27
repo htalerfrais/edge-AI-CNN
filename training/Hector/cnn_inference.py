@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 # from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 import numpy as np
 import os
-from hector_train_cnn import CNN
+from train_cnn import CNN
 from PIL import Image
 
 

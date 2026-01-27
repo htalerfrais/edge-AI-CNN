@@ -4,7 +4,7 @@
 import torch
 import torch.nn as nn
 import numpy as np
-from hector_train_mlp import MinimalMLP
+from train_mlp import MinimalMLP
 
 
 def export_to_txt(model_path, output_path):

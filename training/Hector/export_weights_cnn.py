@@ -5,7 +5,7 @@
 import torch
 import torch.nn as nn
 import numpy as np
-from hector_train_cnn import CNN
+from train_cnn import CNN
 
 
 def export_to_txt(model_path, output_path):
