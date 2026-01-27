@@ -7,8 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 from hector_train_cnn import CNN
-
-
+from PIL import Image
 
 
 def evaluate_local_dataset(model_path, data_dir):
@@ -19,7 +18,7 @@ def evaluate_local_dataset(model_path, data_dir):
         transforms.Grayscale(num_output_channels=1),
         transforms.Resize((28, 28)),
         transforms.ToTensor(),
-        transforms.Normalize((0.5,), (0.5,))
+        transforms.Normalize((0.1307,), (0.3081,))
     ])
 
     try:
@@ -67,8 +66,48 @@ def evaluate_local_dataset(model_path, data_dir):
     return all_labels, all_preds
 
 
+
+def test_single_image(model_path, image_path):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    
+    transform = transforms.Compose([
+        transforms.Grayscale(num_output_channels=1),
+        transforms.Resize((28, 28)),
+        transforms.ToTensor(),
+        transforms.Normalize((0.1307,), (0.3081,))
+    ])
+
+    raw_image = Image.open(image_path)
+    input_tensor = transform(raw_image) # Donne un tenseur [1, 28, 28]
+    
+    input_tensor = input_tensor.unsqueeze(0).to(device) # [1, 1, 28, 28]
+
+    model = CNN().to(device)
+    model.load_state_dict(torch.load(model_path, map_location=device))
+    model.eval()
+    
+    with torch.no_grad():
+        outputs = model(input_tensor)
+        scores = outputs[0] 
+        _, predicted = torch.max(outputs, 1)
+    
+    print("-" * 25)
+    print("Dernière couche : \n")
+    for i in range(len(scores)):
+        print(f"Score {i} = {scores[i].item():.4f}")
+    print("-" * 25)
+    print(f"Fichier testé : {image_path}")
+    print(f"Chiffre détecté : {predicted.item()}")
+    
+    return predicted.item()
+
+
+
 if __name__ == "__main__":
     MODEL_FILE = "models/cnn_model.pt"
     DATA_PATH = "../../data/mnist_digit/" 
+    IMAGE_PATH = "../../data/mnist_digit/2/digit_2_6.bmp"
     
-    labels, preds = evaluate_local_dataset(MODEL_FILE, DATA_PATH)
+    # labels, preds = evaluate_local_dataset(MODEL_FILE, DATA_PATH)
+    
+    test_single_image(MODEL_FILE, IMAGE_PATH)

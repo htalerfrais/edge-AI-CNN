@@ -8,7 +8,7 @@
 #include <csignal>
 #include <atomic>
 #include <algorithm>
-#include "neural_network.h"
+#include "neural_network_mlp.h"
 
 std::atomic<bool> running(true);
 void sigHandler(int) { running = false; }
