@@ -36,6 +36,9 @@ int main(int argc, char** argv) {
     }
 
     bool digitDetected = false;
+    int pred;
+    double elapsed;
+    float confidence;
 
     std::cout << "=== Pi5 Camera ===" << std::endl;
     std::cout << "In:" << inPort << " Out:" << outPort << " " << w << "x" << h << std::endl;
@@ -78,7 +81,7 @@ int main(int argc, char** argv) {
         int roiY = (frame.rows - roiH) / 2;
 
         cv::Rect centerROI(roiX, roiY, roiW, roiH);
-        cv::rectangle(frame, centerROI, cv::Scalar(255,0,0), 2); // blue ROI
+        //cv::rectangle(frame, centerROI, cv::Scalar(255,0,0), 2); // blue ROI
         cv::Mat roiFrame = frame(centerROI);
 
         // PREPROCESSING
@@ -93,15 +96,10 @@ int main(int argc, char** argv) {
             15, 5
         );
 
-        // Morphological cleanup
-        cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3,3));
-        cv::morphologyEx(thresh, thresh, cv::MORPH_OPEN, kernel);
-        cv::morphologyEx(thresh, thresh, cv::MORPH_CLOSE, kernel);
-
         // CONTOUR DETECTION
         std::vector<std::vector<cv::Point>> contours;
         cv::findContours(thresh, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
-        //cv::drawContours(roiFrame, contours, -1, cv::Scalar(0,0,255), 2); // red contours
+        cv::drawContours(roiFrame, contours, -1, cv::Scalar(0,0,255), 2); // red contours
 
         int bestIdx = -1;
         double bestScore = 0.0;
@@ -111,12 +109,6 @@ int main(int argc, char** argv) {
             if (area < 150) continue;
 
             cv::Rect box = cv::boundingRect(contours[i]);
-
-            // Reject border-touching contours
-            if (box.x <= 2 || box.y <= 2 ||
-                box.x + box.width >= gray.cols - 2 ||
-                box.y + box.height >= gray.rows - 2)
-                continue;
 
             // Aspect ratio constraint
             float ratio = (float)box.width / box.height;
@@ -210,9 +202,19 @@ int main(int argc, char** argv) {
                 cv::Scalar(0)
             );
             
-            // BRIGHTEN
-            //digit28 = cv::min(digit28 * 1.25, 255); // brighten
-            //cv::threshold(digit28, digit28, 128, 255, cv::THRESH_BINARY);
+
+            // --- Force MNIST-style white strokes ---
+            cv::normalize(digit28, digit28, 0, 255, cv::NORM_MINMAX);
+
+            // Hard binarization
+            //cv::threshold(digit28, digit28, 140, 255, cv::THRESH_BINARY);
+
+            cv::Mat k = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(3,3));
+            cv::morphologyEx(digit28, digit28, cv::MORPH_CLOSE, k, cv::Point(-1,-1), 1);
+
+            digit28 = cv::min(digit28 * 1.5, 255); // brighten by 50%
+
+            cv::GaussianBlur(digit28, digit28, cv::Size(3,3), 0.5);
 
             cv::Mat overlay;
             int scale = 10;
@@ -222,20 +224,29 @@ int main(int argc, char** argv) {
             // Show it in the video
             overlay.copyTo(frame(cv::Rect(10, 10, overlay.cols, overlay.rows)));
 
+            // Convert to float in [0,1]
+            cv::Mat digitFloat;
+            digit28.convertTo(digitFloat, CV_32F, 1.0 / 255.0);
+
+            // MNIST-style normalization
+            const float MNIST_MEAN = 0.1307f;
+            const float MNIST_STD  = 0.3081f;
+            digitFloat = (digitFloat - MNIST_MEAN) / MNIST_STD;
+
             float nn_input[784];
             for (int y = 0; y < 28; y++) {
-                const uchar* row = digit28.ptr<uchar>(y);
+                const float* row = digitFloat.ptr<float>(y);
                 for (int x = 0; x < 28; x++) {
-                    nn_input[y*28 + x] = row[x] / 255.0f;
+                    nn_input[y*28 + x] = row[x];
                 }
             }
             
             auto t1 = std::chrono::steady_clock::now();
             forward_pass_cnn(model, nn_input, output);
             auto t2 = std::chrono::steady_clock::now();
-            std::chrono::duration<double, std::milli> elapsed = t2 - t1;
+            elapsed = std::chrono::duration<double, std::milli>(t2 - t1).count();
 
-            int pred = get_prediction(output);
+            pred = get_prediction(output);
 
             // Apply softmax
             float sum_exp = 0.0f;
@@ -247,13 +258,13 @@ int main(int argc, char** argv) {
             for (int i = 0; i < OUTPUT_SIZE; i++)
                 prob[i] /= sum_exp;
 
-            float confidence = prob[pred];
+            confidence = prob[pred];
 
             //const float CONF_THRESHOLD = 0.8f;
 
             if (digitDetected && pred != last_pred) {
                 std::cout << "Prediction : " << pred 
-                        << " in " << elapsed.count() << " ms."
+                        << " in " << elapsed << " ms."
                         << " Confidence : " << confidence << std::endl;
                 last_pred = pred;
             }
@@ -268,6 +279,7 @@ int main(int argc, char** argv) {
             );
             cv::rectangle(frame, globalBox, cv::Scalar(0,255,0), 2);
 
+
             // --- Overlay prediction on bounding box ---
             char text[32];
             std::snprintf(text, sizeof(text), "%d (%.2f)", pred, confidence);
@@ -279,6 +291,8 @@ int main(int argc, char** argv) {
             
         }
 
+        cv::rectangle(frame, centerROI, cv::Scalar(255,0,0), 2);
+
         writer.write(frame);
         count++;
 
@@ -288,6 +302,11 @@ int main(int argc, char** argv) {
             std::cout << "FPS: " << static_cast<int>(count / dt.count()) << std::endl;
             count = 0;
             t0 = now;
+            if(pred == last_pred){
+                std::cout << "Prediction : " << pred 
+                << " in " << elapsed << " ms."
+                << " Confidence : " << confidence << std::endl;
+            }
         }
     }
 

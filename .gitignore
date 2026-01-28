@@ -1,2 +1,6 @@
 .DS_Store
 __pycache__/
+
+data/mnist_digits_inverted
+data/MNIST/raw
+
