@@ -45,6 +45,7 @@ MLPModel* load_mlp_model(const char *filename) {
     return model;
 }
 
+
 void free_mlp_model(MLPModel *model) {
     if (model) {
         free(model->W1);
