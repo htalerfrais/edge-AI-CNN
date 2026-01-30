@@ -9,6 +9,9 @@
 #include <atomic>
 #include <algorithm>
 #include "neural_network.h"
+#include "contour_detection.h"
+#include "contour_selector.h"
+#include "digit_extractor.h"
 
 std::atomic<bool> running(true);
 void sigHandler(int) { running = false; }
@@ -36,9 +39,9 @@ int main(int argc, char** argv) {
     }
 
     bool digitDetected = false;
-    int pred;
-    double elapsed;
-    float confidence;
+    int pred = -1;
+    double elapsed = 0.0;
+    float confidence = 0.0f;
 
     std::cout << "=== Pi5 Camera ===" << std::endl;
     std::cout << "In:" << inPort << " Out:" << outPort << " " << w << "x" << h << std::endl;
@@ -98,32 +101,10 @@ int main(int argc, char** argv) {
 
         // CONTOUR DETECTION
         std::vector<std::vector<cv::Point>> contours;
-        cv::findContours(thresh, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
-        cv::drawContours(roiFrame, contours, -1, cv::Scalar(0,0,255), 2); // red contours
+        contour_det_find_all(thresh, contours);
+        contour_det_draw(roiFrame, contours); // red contours
 
-        int bestIdx = -1;
-        double bestScore = 0.0;
-
-        for (int i = 0; i < (int)contours.size(); i++) {
-            double area = cv::contourArea(contours[i]);
-            if (area < 150) continue;
-
-            cv::Rect box = cv::boundingRect(contours[i]);
-
-            // Aspect ratio constraint
-            float ratio = (float)box.width / box.height;
-            if (ratio < 0.2f || ratio > 2.0f) continue;
-
-            // Fill ratio constraint
-            double fill = area / (box.width * box.height);
-            if (fill < 0.0) continue;
-
-            double score = area * fill;
-            if (score > bestScore) {
-                bestScore = score;
-                bestIdx = i;
-            }
-        }
+        int bestIdx = contour_sel_find_best(contours);
 
         // DIGIT FOUND
         if (bestIdx >= 0) {
@@ -133,88 +114,9 @@ int main(int argc, char** argv) {
 
             //cv::rectangle(frame, box, cv::Scalar(0,255,0), 2); // green bounding box
 
-            // Flatten ROI for neural network
-            // --- Extract digit mask (white digit on black background) ---
-            cv::Mat digitMask = thresh(box);
-
-            // Ensure binary (0 or 255)
-            cv::threshold(digitMask, digitMask, 128, 255, cv::THRESH_BINARY);
-
-            // --- Compute barycenter of original digit ---
-            double sumX = 0.0, sumY = 0.0, countPix = 0.0;
-            for (int y = 0; y < digitMask.rows; y++) {
-                const uchar* row = digitMask.ptr<uchar>(y);
-                for (int x = 0; x < digitMask.cols; x++) {
-                    if (row[x] > 0) { // pixel belongs to digit
-                        sumX += x;
-                        sumY += y;
-                        countPix += 1.0;
-                    }
-                }
-            }
-
-            double cx = sumX / countPix;
-            double cy = sumY / countPix;
-
-            // --- Resize digit to fit 20x20 ---
-            int origW = digitMask.cols;
-            int origH = digitMask.rows;
-            int newW, newH;
-
-            if (origW > origH) {
-                newW = 20;
-                newH = static_cast<int>(origH * (20.0 / origW));
-            } else {
-                newH = 20;
-                newW = static_cast<int>(origW * (20.0 / origH));
-            }
-
-            cv::Mat digitResized;
-            cv::resize(digitMask, digitResized, cv::Size(newW, newH), 0, 0, cv::INTER_AREA);
-
-            // --- Place resized digit in 20x20 canvas using original barycenter ---
-            cv::Mat digit20 = cv::Mat::zeros(20, 20, CV_8UC1);
-
-            // Compute offsets to put the barycenter at (10,10)
-            double scaleX = static_cast<double>(newW) / origW;
-            double scaleY = static_cast<double>(newH) / origH;
-
-            int offsetX = static_cast<int>(10 - cx * scaleX);
-            int offsetY = static_cast<int>(10 - cy * scaleY);
-
-            for (int y = 0; y < digitResized.rows; y++) {
-                for (int x = 0; x < digitResized.cols; x++) {
-                    int dx = x + offsetX;
-                    int dy = y + offsetY;
-                    if (dx >= 0 && dx < 20 && dy >= 0 && dy < 20) {
-                        digit20.at<uchar>(dy, dx) = digitResized.at<uchar>(y, x);
-                    }
-                }
-            }
-
-            // --- Pad to 28x28 ---
+            // --- Extract digit (28x28) ---
             cv::Mat digit28;
-            cv::copyMakeBorder(
-                digit20,
-                digit28,
-                4, 4, 4, 4,
-                cv::BORDER_CONSTANT,
-                cv::Scalar(0)
-            );
-            
-
-            // --- Force MNIST-style white strokes ---
-            cv::normalize(digit28, digit28, 0, 255, cv::NORM_MINMAX);
-
-            // Hard binarization
-            //cv::threshold(digit28, digit28, 140, 255, cv::THRESH_BINARY);
-
-            cv::Mat k = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(3,3));
-            cv::morphologyEx(digit28, digit28, cv::MORPH_CLOSE, k, cv::Point(-1,-1), 1);
-
-            digit28 = cv::min(digit28 * 1.5, 255); // brighten by 50%
-
-            cv::GaussianBlur(digit28, digit28, cv::Size(3,3), 0.5);
+            digit_extr_extract(thresh, box, digit28);
 
             cv::Mat overlay;
             int scale = 10;
@@ -224,22 +126,8 @@ int main(int argc, char** argv) {
             // Show it in the video
             overlay.copyTo(frame(cv::Rect(10, 10, overlay.cols, overlay.rows)));
 
-            // Convert to float in [0,1]
-            cv::Mat digitFloat;
-            digit28.convertTo(digitFloat, CV_32F, 1.0 / 255.0);
-
-            // MNIST-style normalization
-            const float MNIST_MEAN = 0.1307f;
-            const float MNIST_STD  = 0.3081f;
-            digitFloat = (digitFloat - MNIST_MEAN) / MNIST_STD;
-
             float nn_input[784];
-            for (int y = 0; y < 28; y++) {
-                const float* row = digitFloat.ptr<float>(y);
-                for (int x = 0; x < 28; x++) {
-                    nn_input[y*28 + x] = row[x];
-                }
-            }
+            digit_extr_to_nn_input(digit28, nn_input);
             
             auto t1 = std::chrono::steady_clock::now();
             forward_pass_cnn(model, nn_input, output);

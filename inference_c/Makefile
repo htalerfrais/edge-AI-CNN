@@ -8,7 +8,7 @@ CFLAGS = -O3 -Wall
 LDFLAGS = $(shell pkg-config --libs opencv4) -lm
 
 # Objets
-OBJS = main.o neural_network.o
+OBJS = main.o neural_network.o contour_detection.o contour_selector.o digit_extractor.o
 
 all: $(TARGET)
 
@@ -20,6 +20,15 @@ main.o: main.cpp
 
 neural_network.o: neural_network.c
 	$(CC) $(CFLAGS) -c neural_network.c
+
+contour_detection.o: contour_detection.cpp contour_detection.h
+	$(CXX) $(CXXFLAGS) -c contour_detection.cpp
+
+contour_selector.o: contour_selector.cpp contour_selector.h
+	$(CXX) $(CXXFLAGS) -c contour_selector.cpp
+
+digit_extractor.o: digit_extractor.cpp digit_extractor.h
+	$(CXX) $(CXXFLAGS) -c digit_extractor.cpp
 
 clean:
 	rm -f *.o $(TARGET)
