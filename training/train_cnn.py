@@ -70,6 +70,8 @@ def get_global_stats():
 
 # Def training loop (with validation each epoch)
 def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler, device, num_epochs):
+    train_losses, train_accs, val_losses, val_accs = [], [], [], []
+
     for epoch in range(num_epochs):
         model.train()
         running_loss = 0.0
@@ -96,6 +98,8 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler
         scheduler.step()
         train_loss = running_loss / len(train_loader)
         train_acc = 100.0 * correct / total
+        train_losses.append(train_loss)
+        train_accs.append(train_acc)
 
         # Validation
         model.eval()
@@ -112,9 +116,13 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler
                 val_correct += predicted.eq(target).sum().item()
         val_loss /= len(val_loader)
         val_acc = 100.0 * val_correct / val_total
+        val_losses.append(val_loss)
+        val_accs.append(val_acc)
 
         print(f'Epoch [{epoch+1}/{num_epochs}] Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.2f}% | '
               f'Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.2f}%')
+
+    return train_losses, train_accs, val_losses, val_accs
         
         
         
@@ -146,6 +154,29 @@ def test_model(model, test_loader, criterion, device):
     
     print(f'Test Loss: {test_loss:.4f}, Test Accuracy: {accuracy:.2f}%')
     return test_loss, accuracy
+
+
+def plot_metrics(train_losses, train_accs, val_losses, val_accs, save_path="models/metrics_cnn.png"):
+    """Trace et sauvegarde les courbes loss et accuracy (train / val)."""
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
+    epochs = range(1, len(train_losses) + 1)
+    ax1.plot(epochs, train_losses, "b-", label="Train Loss")
+    ax1.plot(epochs, val_losses, "r-", label="Val Loss")
+    ax1.set_xlabel("Epoch")
+    ax1.set_ylabel("Loss")
+    ax1.legend()
+    ax1.set_title("Loss")
+    ax2.plot(epochs, train_accs, "b-", label="Train Acc")
+    ax2.plot(epochs, val_accs, "r-", label="Val Acc")
+    ax2.set_xlabel("Epoch")
+    ax2.set_ylabel("Accuracy (%)")
+    ax2.legend()
+    ax2.set_title("Accuracy")
+    plt.tight_layout()
+    os.makedirs(os.path.dirname(save_path) or ".", exist_ok=True)
+    plt.savefig(save_path, dpi=150)
+    plt.close()
+    print(f"Courbes sauvegardées : {save_path}")
 
 
 def save_weights(model, file_name):
@@ -198,8 +229,10 @@ if __name__ == "__main__":
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
 
     print("Starting training...")
-    train_model(model, train_loader, val_loader, criterion, optimizer, scheduler, device, num_epochs=5)
+    train_losses, train_accs, val_losses, val_accs = train_model(
+        model, train_loader, val_loader, criterion, optimizer, scheduler, device, num_epochs=5
+    )
+    plot_metrics(train_losses, train_accs, val_losses, val_accs, save_path="models/metrics_cnn.png")
     print("\nStarting testing...")
     test_loss, test_accuracy = test_model(model, test_loader, criterion, device)
-    
     save_weights(model, "cnn_model.pt")

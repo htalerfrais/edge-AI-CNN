@@ -4,6 +4,7 @@ import torch.optim as optim
 import torchvision
 import torchvision.transforms as transforms
 from torch.utils.data import DataLoader, ConcatDataset
+import matplotlib.pyplot as plt
 import os
 
 # --- CONFIGURATION & MODELE ---
@@ -51,14 +52,39 @@ def get_global_stats():
     return mean / nb_samples, std / nb_samples
 
 
+def plot_metrics(train_losses, train_accs, val_losses, val_accs, save_path="models/metrics_mlp.png"):
+    """Trace et sauvegarde les courbes loss et accuracy (train / val)."""
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
+    epochs = range(1, len(train_losses) + 1)
+    ax1.plot(epochs, train_losses, "b-", label="Train Loss")
+    ax1.plot(epochs, val_losses, "r-", label="Val Loss")
+    ax1.set_xlabel("Epoch")
+    ax1.set_ylabel("Loss")
+    ax1.legend()
+    ax1.set_title("Loss")
+    ax2.plot(epochs, train_accs, "b-", label="Train Acc")
+    ax2.plot(epochs, val_accs, "r-", label="Val Acc")
+    ax2.set_xlabel("Epoch")
+    ax2.set_ylabel("Accuracy (%)")
+    ax2.legend()
+    ax2.set_title("Accuracy")
+    plt.tight_layout()
+    os.makedirs(os.path.dirname(save_path) or ".", exist_ok=True)
+    plt.savefig(save_path, dpi=150)
+    plt.close()
+    print(f"Courbes sauvegardées : {save_path}")
 
-def train(epochs=10, val_loader=None):
+
+def train(epochs=5, val_loader=None):
+    train_losses, train_accs, val_losses, val_accs = [], [], [], []
+
     for epoch in range(epochs):
         model.train()
         running_loss = 0.0
         correct = 0
         total = 0
-        for data, target in train_loader:
+
+        for batch_idx, (data, target) in enumerate(train_loader):
             data, target = data.to(DEVICE), target.to(DEVICE)
             optimizer.zero_grad()
             output = model(data)
@@ -69,8 +95,15 @@ def train(epochs=10, val_loader=None):
             _, predicted = torch.max(output, 1)
             total += target.size(0)
             correct += (predicted == target).sum().item()
+
+            if batch_idx % 100 == 0:
+                print(f"Epoch [{epoch+1}/{epochs}], Batch [{batch_idx}/{len(train_loader)}], "
+                      f"Loss: {loss.item():.4f}, Accuracy: {100.0 * correct / total:.2f}%")
+
         train_loss = running_loss / len(train_loader)
         train_acc = 100.0 * correct / total
+        train_losses.append(train_loss)
+        train_accs.append(train_acc)
 
         if val_loader is not None:
             model.eval()
@@ -87,10 +120,14 @@ def train(epochs=10, val_loader=None):
                     val_correct += (predicted == target).sum().item()
             val_loss /= len(val_loader)
             val_acc = 100.0 * val_correct / val_total
-            print(f"Epoch {epoch+1}/{epochs} - Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.2f}% | "
+            val_losses.append(val_loss)
+            val_accs.append(val_acc)
+            print(f"Epoch [{epoch+1}/{epochs}] Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.2f}% | "
                   f"Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.2f}%")
         else:
-            print(f"Epoch {epoch+1}/{epochs} - Loss: {train_loss:.4f}, Acc: {train_acc:.2f}%")
+            print(f"Epoch [{epoch+1}/{epochs}] Loss: {train_loss:.4f}, Acc: {train_acc:.2f}%")
+
+    return train_losses, train_accs, val_losses, val_accs
 
 def test():
     model.eval()
@@ -136,8 +173,9 @@ if __name__ == "__main__":
     optimizer = optim.Adam(model.parameters(), lr=0.001)
 
 
-    train(10, val_loader=val_loader)
+    train_losses, train_accs, val_losses, val_accs = train(5, val_loader=val_loader)
+    plot_metrics(train_losses, train_accs, val_losses, val_accs, save_path="models/metrics_mlp.png")
     test()
-    
-    if not os.path.exists('models'): os.makedirs('models')
+    if not os.path.exists("models"):
+        os.makedirs("models")
     torch.save(model.state_dict(), "models/mlp_model.pt")
