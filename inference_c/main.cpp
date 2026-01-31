@@ -27,11 +27,13 @@ int main(int argc, char** argv) {
     int w = argc > 3 ? std::stoi(argv[3]) : 1280;
     int h = argc > 4 ? std::stoi(argv[4]) : 720;
 
-    const char* model_path = "./cnn_model.txt";
-
     float output[OUTPUT_SIZE];
-    //MLPModel* model = load_mlp_model(model_path);
-    CNNModel* model = load_cnn_model(model_path);
+
+    const char* model_path_mlp = "./mlp_model.txt";
+    const char* model_path_cnn = "./cnn_model.txt";
+
+    MLPModel* model = load_mlp_model(model_path_mlp);
+    CNNModel* model = load_cnn_model(model_path_cnn);
 
     if (!model) {
         std::cerr << "Erreur chargement modèle" << std::endl;
