@@ -22,20 +22,21 @@ int main(int argc, char** argv) {
     signal(SIGINT, sigHandler);
     signal(SIGTERM, sigHandler);
 
-    int inPort = argc > 1 ? std::stoi(argv[1]) : 5000;
-    int outPort = argc > 2 ? std::stoi(argv[2]) : 8554;
-    int w = argc > 3 ? std::stoi(argv[3]) : 1280;
-    int h = argc > 4 ? std::stoi(argv[4]) : 720;
+    const char* inHost = argc > 1 ? argv[1] : "127.0.0.1";
+    int inPort = argc > 2 ? std::stoi(argv[2]) : 5000;
+    int outPort = argc > 3 ? std::stoi(argv[3]) : 8554;
+    int w = argc > 4 ? std::stoi(argv[4]) : 1280;
+    int h = argc > 5 ? std::stoi(argv[5]) : 720;
 
     float output[OUTPUT_SIZE];
 
     const char* model_path_mlp = "./mlp_model.txt";
     const char* model_path_cnn = "./cnn_model.txt";
 
-    MLPModel* model = load_mlp_model(model_path_mlp);
-    CNNModel* model = load_cnn_model(model_path_cnn);
+    MLPModel* model_mlp = load_mlp_model(model_path_mlp);
+    CNNModel* model_cnn = load_cnn_model(model_path_cnn);
 
-    if (!model) {
+    if (!model_cnn) {
         std::cerr << "Erreur chargement modèle" << std::endl;
         return 1;
     }
@@ -46,11 +47,12 @@ int main(int argc, char** argv) {
     float confidence = 0.0f;
 
     std::cout << "=== Pi5 Camera ===" << std::endl;
-    std::cout << "In:" << inPort << " Out:" << outPort << " " << w << "x" << h << std::endl;
+    std::cout << "In:" << inHost << ":" << inPort << " Out:" << outPort << " " << w << "x" << h << std::endl;
 
     std::string capPipe =
-        "tcpclientsrc host=127.0.0.1 port=" + std::to_string(inPort) + " ! "
-        "h264parse ! avdec_h264 ! videoconvert ! video/x-raw,format=BGR ! "
+        std::string("tcpclientsrc host=") + inHost + " port=" + std::to_string(inPort) + " ! "
+        "tsdemux ! h264parse ! avdec_h264 ! videoconvert ! video/x-raw,format=BGR ! "
+        // "h264parse ! avdec_h264 ! videoconvert ! video/x-raw,format=BGR ! " // for native pipeline on raspberry pi
         "appsink drop=1 sync=0";
 
     std::string outPipe =
@@ -132,7 +134,7 @@ int main(int argc, char** argv) {
             digit_extr_to_nn_input(digit28, nn_input);
             
             auto t1 = std::chrono::steady_clock::now();
-            forward_pass_cnn(model, nn_input, output);
+            forward_pass_cnn(model_cnn, nn_input, output);
             auto t2 = std::chrono::steady_clock::now();
             elapsed = std::chrono::duration<double, std::milli>(t2 - t1).count();
 
