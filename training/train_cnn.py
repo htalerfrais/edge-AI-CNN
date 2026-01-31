@@ -7,6 +7,7 @@ import torchvision
 import torchvision.transforms as transforms
 import PIL.Image as Image
 import os
+from pathlib import Path
 from torch.utils.data import ConcatDataset, DataLoader
 
 
@@ -19,6 +20,8 @@ PERSO_TRAIN_PATH = "../data/mnist_digit_train"
 PERSO_VAL_PATH = "../data/mnist_digit_val"
 PERSO_TEST_PATH = "../data/mnist_digit_test"
 BATCH_SIZE = 64
+BASE_DIR = Path(__file__).resolve().parent
+MODELS_DIR = BASE_DIR / "models"
 
 class CNN(nn.Module):
     def __init__(self):
@@ -156,7 +159,7 @@ def test_model(model, test_loader, criterion, device):
     return test_loss, accuracy
 
 
-def plot_metrics(train_losses, train_accs, val_losses, val_accs, save_path="models/metrics_cnn.png"):
+def plot_metrics(train_losses, train_accs, val_losses, val_accs, save_path=None):
     """Trace et sauvegarde les courbes loss et accuracy (train / val)."""
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
     epochs = range(1, len(train_losses) + 1)
@@ -173,17 +176,18 @@ def plot_metrics(train_losses, train_accs, val_losses, val_accs, save_path="mode
     ax2.legend()
     ax2.set_title("Accuracy")
     plt.tight_layout()
-    os.makedirs(os.path.dirname(save_path) or ".", exist_ok=True)
-    plt.savefig(save_path, dpi=150)
+    if save_path is None:
+        save_path = MODELS_DIR / "metrics_cnn.png"
+    MODELS_DIR.mkdir(parents=True, exist_ok=True)
+    plt.savefig(str(save_path), dpi=150)
     plt.close()
     print(f"Courbes sauvegardées : {save_path}")
 
 
 def save_weights(model, file_name):
-    if not os.path.exists('models'):
-        os.makedirs('models')
-    path = os.path.join("models", file_name)
-    torch.save(model.state_dict(), path)
+    MODELS_DIR.mkdir(parents=True, exist_ok=True)
+    path = MODELS_DIR / file_name
+    torch.save(model.state_dict(), str(path))
     print(f"Poids du modèle CNN sauvegardés avec succès dans : {path}")    
     
 
@@ -232,7 +236,7 @@ if __name__ == "__main__":
     train_losses, train_accs, val_losses, val_accs = train_model(
         model, train_loader, val_loader, criterion, optimizer, scheduler, device, num_epochs=5
     )
-    plot_metrics(train_losses, train_accs, val_losses, val_accs, save_path="models/metrics_cnn.png")
+    plot_metrics(train_losses, train_accs, val_losses, val_accs)
     print("\nStarting testing...")
     test_loss, test_accuracy = test_model(model, test_loader, criterion, device)
     save_weights(model, "cnn_model.pt")

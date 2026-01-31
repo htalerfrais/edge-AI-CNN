@@ -3,11 +3,15 @@ import torch.nn as nn
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
-# from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 import numpy as np
 import os
 from train_cnn import CNN
 from PIL import Image
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent
+MODELS_DIR = BASE_DIR / "models"
 
 
 def evaluate_local_dataset(model_path, data_dir):
@@ -37,7 +41,11 @@ def evaluate_local_dataset(model_path, data_dir):
     all_preds = []
     correct = 0
     total = 0
-    
+
+    print("\n--- Détail par image ---")
+    print(f"{'Image':<10} | {'Réel':<6} | {'Prédit':<6} | {'Statut'}")
+    print("-" * 40)
+
     with torch.no_grad():
         for i, (images, labels) in enumerate(custom_loader):
             images, labels = images.to(device), labels.to(device)
@@ -62,9 +70,28 @@ def evaluate_local_dataset(model_path, data_dir):
     accuracy = 100 * correct / total
     print("-" * 40)
     print(f"Précision finale : {accuracy:.2f}% ({correct}/{total})")
-    
+
     return all_labels, all_preds
 
+
+def plot_confusion_matrix(all_labels, all_preds, save_path=None):
+    """Génère et sauvegarde la matrice de confusion."""
+    if not all_labels:
+        return
+    cm = confusion_matrix(all_labels, all_preds)
+    fig, ax = plt.subplots(figsize=(10, 8))
+    disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=np.arange(10))
+    disp.plot(cmap=plt.cm.Blues, ax=ax, values_format="d")
+    plt.title("Matrice de Confusion - CNN (dataset de test)")
+    plt.xlabel("Prédictions")
+    plt.ylabel("Labels réels")
+    plt.tight_layout()
+    if save_path is None:
+        save_path = MODELS_DIR / "confusion_matrix_cnn.png"
+    MODELS_DIR.mkdir(parents=True, exist_ok=True)
+    plt.savefig(str(save_path), dpi=150)
+    plt.close()
+    print(f"Matrice de confusion sauvegardée : {save_path}")
 
 
 def test_single_image(model_path, image_path):
@@ -88,27 +115,29 @@ def test_single_image(model_path, image_path):
     
     with torch.no_grad():
         outputs = model(input_tensor)
-        scores = outputs[0] 
+        scores = outputs[0]
         _, predicted = torch.max(outputs, 1)
-    
-    print("-" * 25)
-    print("Dernière couche : \n")
-    for i in range(len(scores)):
-        print(f"Score {i} = {scores[i].item():.4f}")
-    print("-" * 25)
-    print(f"Fichier testé : {image_path}")
-    print(f"Chiffre détecté : {predicted.item()}")
-    
-    return predicted.item()
 
+    pred_val = predicted.item()
+    print("-" * 30)
+    print("Scores de la dernière couche :")
+    for i in range(len(scores)):
+        print(f"  Classe {i} = {scores[i].item():.4f}")
+    print("-" * 30)
+    print(f"Image : {image_path}")
+    print(f"Chiffre prédit : {pred_val}")
+    return pred_val
 
 
 if __name__ == "__main__":
-    MODEL_FILE = "models/cnn_model.pt"
-    # Dataset de test uniquement (jamais vu à l'entraînement)
-    DATA_PATH = "../../data/mnist_digit_test"
-    IMAGE_PATH = "../../data/mnist_digit_test/2/digit_2_2.bmp"  # exemple dans le test
+    MODEL_FILE = MODELS_DIR / "cnn_model.pt"
+    DATA_PATH = BASE_DIR.parent / "data" / "mnist_digit_test"
+    IMAGE_PATH = BASE_DIR.parent / "data" / "mnist_digit_test" / "2" / "digit_2_2.bmp"  # exemple
 
-    # labels, preds = evaluate_local_dataset(MODEL_FILE, DATA_PATH)
+    print("=== Test sur le dataset de test (CNN) ===\n")
+    labels, preds = evaluate_local_dataset(str(MODEL_FILE), str(DATA_PATH))
+    if labels:
+        plot_confusion_matrix(labels, preds)
 
-    test_single_image(MODEL_FILE, IMAGE_PATH)
+    print("\n=== Inférence sur une image (scores dernière couche) ===\n")
+    test_single_image(str(MODEL_FILE), str(IMAGE_PATH))

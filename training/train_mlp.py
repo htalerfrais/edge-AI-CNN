@@ -6,6 +6,7 @@ import torchvision.transforms as transforms
 from torch.utils.data import DataLoader, ConcatDataset
 import matplotlib.pyplot as plt
 import os
+from pathlib import Path
 
 # --- CONFIGURATION & MODELE ---
 torch.random.manual_seed(0)
@@ -14,6 +15,8 @@ PERSO_TRAIN_PATH = "../data/mnist_digit_train"
 PERSO_VAL_PATH = "../data/mnist_digit_val"
 PERSO_TEST_PATH = "../data/mnist_digit_test"
 BATCH_SIZE = 64
+BASE_DIR = Path(__file__).resolve().parent
+MODELS_DIR = BASE_DIR / "models"
 
 class MinimalMLP(nn.Module):
     def __init__(self):
@@ -52,7 +55,7 @@ def get_global_stats():
     return mean / nb_samples, std / nb_samples
 
 
-def plot_metrics(train_losses, train_accs, val_losses, val_accs, save_path="models/metrics_mlp.png"):
+def plot_metrics(train_losses, train_accs, val_losses, val_accs, save_path=None):
     """Trace et sauvegarde les courbes loss et accuracy (train / val)."""
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
     epochs = range(1, len(train_losses) + 1)
@@ -69,8 +72,10 @@ def plot_metrics(train_losses, train_accs, val_losses, val_accs, save_path="mode
     ax2.legend()
     ax2.set_title("Accuracy")
     plt.tight_layout()
-    os.makedirs(os.path.dirname(save_path) or ".", exist_ok=True)
-    plt.savefig(save_path, dpi=150)
+    if save_path is None:
+        save_path = MODELS_DIR / "metrics_mlp.png"
+    MODELS_DIR.mkdir(parents=True, exist_ok=True)
+    plt.savefig(str(save_path), dpi=150)
     plt.close()
     print(f"Courbes sauvegardées : {save_path}")
 
@@ -174,8 +179,7 @@ if __name__ == "__main__":
 
 
     train_losses, train_accs, val_losses, val_accs = train(5, val_loader=val_loader)
-    plot_metrics(train_losses, train_accs, val_losses, val_accs, save_path="models/metrics_mlp.png")
+    plot_metrics(train_losses, train_accs, val_losses, val_accs)
     test()
-    if not os.path.exists("models"):
-        os.makedirs("models")
-    torch.save(model.state_dict(), "models/mlp_model.pt")
+    MODELS_DIR.mkdir(parents=True, exist_ok=True)
+    torch.save(model.state_dict(), str(MODELS_DIR / "mlp_model.pt"))
