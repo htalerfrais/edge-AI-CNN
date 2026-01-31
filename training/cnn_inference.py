@@ -105,9 +105,10 @@ def test_single_image(model_path, image_path):
 
 if __name__ == "__main__":
     MODEL_FILE = "models/cnn_model.pt"
-    DATA_PATH = "../../data/mnist_digit/" 
-    IMAGE_PATH = "../../data/mnist_digit/2/digit_2_6.bmp"
-    
+    # Dataset de test uniquement (jamais vu à l'entraînement)
+    DATA_PATH = "../../data/mnist_digit_test"
+    IMAGE_PATH = "../../data/mnist_digit_test/2/digit_2_2.bmp"  # exemple dans le test
+
     # labels, preds = evaluate_local_dataset(MODEL_FILE, DATA_PATH)
-    
+
     test_single_image(MODEL_FILE, IMAGE_PATH)

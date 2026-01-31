@@ -105,8 +105,9 @@ def plot_confusion_matrix(all_labels, all_preds):
 
 if __name__ == "__main__":
     MODEL_FILE = "models/mlp_model.pt"
-    DATA_PATH = "../../data/mnist_digit/" 
-    
+    # Dataset de test uniquement (jamais vu à l'entraînement)
+    DATA_PATH = "../../data/mnist_digit_test"
+
     labels, preds = evaluate_local_dataset(MODEL_FILE, DATA_PATH)
     # if labels:
         # plot_confusion_matrix(labels, preds)
