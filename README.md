@@ -21,8 +21,8 @@ This project aims to design and deploy a lightweight embedded artificial intelli
 Ensure that your Raspberry Pi is connected to the same network as your host machine. Access it remotely using SSH and run the following commands :
 
 ```bash
-git clone --no-checkout git@github.com:mhurtubise-git/pi5-camera-docker.git pi5-cam-docker
-cd pi5-cam-docker
+git clone --no-checkout git@github.com:htalerfrais/edge-ai-cnn pi5-digit-ai
+cd pi5-digit-ai
 
 git sparse-checkout init --cone
 
@@ -36,7 +36,7 @@ chmod +x run.sh
 Only the essential files and folders for the application will be cloned, keeping the local repository lightweight. The resulting directory structure should look like this:
 
 ```
-pi5-cam-docker
+pi5-digit-ai
 ├── docker
 │   └── Dockerfile
 ├── inference_c
@@ -81,4 +81,5 @@ After updating, rebuild the Docker container using:
 
 ```bash
 ./run.sh build
+
 ```
