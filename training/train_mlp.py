@@ -80,7 +80,7 @@ def plot_metrics(train_losses, train_accs, val_losses, val_accs, save_path=None)
     print(f"Courbes sauvegardées : {save_path}")
 
 
-def train(epochs=5, val_loader=None):
+def train(epochs=10, val_loader=None):
     train_losses, train_accs, val_losses, val_accs = [], [], [], []
 
     for epoch in range(epochs):
@@ -178,8 +178,8 @@ if __name__ == "__main__":
     optimizer = optim.Adam(model.parameters(), lr=0.001)
 
 
-    train_losses, train_accs, val_losses, val_accs = train(5, val_loader=val_loader)
-    plot_metrics(train_losses, train_accs, val_losses, val_accs)
+    train_losses, train_accs, val_losses, val_accs = train(10, val_loader=val_loader)
+    plot_metrics(train_losses, train_accs, val_losses, val_accs, save_path="models/metrics_mlp.png")
     test()
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
     torch.save(model.state_dict(), str(MODELS_DIR / "mlp_model.pt"))

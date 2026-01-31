@@ -234,7 +234,7 @@ if __name__ == "__main__":
 
     print("Starting training...")
     train_losses, train_accs, val_losses, val_accs = train_model(
-        model, train_loader, val_loader, criterion, optimizer, scheduler, device, num_epochs=5
+        model, train_loader, val_loader, criterion, optimizer, scheduler, device, num_epochs=10
     )
     plot_metrics(train_losses, train_accs, val_losses, val_accs)
     print("\nStarting testing...")
