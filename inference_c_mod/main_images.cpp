@@ -10,7 +10,7 @@
 namespace fs = std::filesystem;
 
 int main(int argc, char** argv) {
-    const char* default_path = "../data/raw_images/4";
+    const char* default_path = "../data/raw_images/8";
     fs::path source = argc > 1 ? fs::path(argv[1]) : fs::path(default_path);
 
     if (!fs::exists(source)) {
