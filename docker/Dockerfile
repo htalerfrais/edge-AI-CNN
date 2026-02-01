@@ -12,5 +12,5 @@ COPY inference_c models ./
 RUN make
 
 ENTRYPOINT ["./app"]
-CMD ["5000", "8554", "1280", "720"]
+CMD ["127.0.0.1", "5000", "8554", "1280", "720"]
 
