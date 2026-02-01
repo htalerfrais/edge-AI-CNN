@@ -39,10 +39,18 @@ int main(int argc, char** argv) {
     fs::path output_dir("output/");
     fs::create_directories(output_dir);
 
+    const char* model_path_mlp = "../models/mlp_model.txt";
     const char* model_path_cnn = "../models/cnn_model.txt";
+    const bool use_cnn = true;  /* true = CNN, false = MLP */
+
+    MLPModel* model_mlp = load_mlp_model(model_path_mlp);
     CNNModel* model_cnn = load_cnn_model(model_path_cnn);
-    if (!model_cnn) {
+    if (use_cnn && !model_cnn) {
         std::cerr << "Erreur chargement modèle CNN" << std::endl;
+        return 1;
+    }
+    if (!use_cnn && !model_mlp) {
+        std::cerr << "Erreur chargement modèle MLP" << std::endl;
         return 1;
     }
 
@@ -57,7 +65,7 @@ int main(int argc, char** argv) {
         }
 
         state.last_pred = -1;
-        process_frame(frame, model_cnn, state, false);  /* full frame, no center ROI */
+        process_frame(frame, model_cnn, model_mlp, use_cnn, state, false);  /* full frame, no center ROI */
 
         fs::path out_path = output_dir / (image_path.stem().string() + "_processed.png");
         if (!cv::imwrite(out_path.string(), frame)) {

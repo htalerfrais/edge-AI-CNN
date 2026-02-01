@@ -8,8 +8,15 @@
 #include <cstdio>
 #include <iostream>
 
-void process_frame(cv::Mat& frame, CNNModel* model_cnn, FrameProcessorState& state, bool use_center_roi) {
-    if (frame.empty() || !model_cnn) {
+void process_frame(cv::Mat& frame,
+                   CNNModel* model_cnn,
+                   MLPModel* model_mlp,
+                   bool use_cnn,
+                   FrameProcessorState& state,
+                   bool use_center_roi) 
+{
+    bool have_model = use_cnn ? (model_cnn != nullptr) : (model_mlp != nullptr);
+    if (frame.empty() || !have_model) {
         return;
     }
 
@@ -66,7 +73,11 @@ void process_frame(cv::Mat& frame, CNNModel* model_cnn, FrameProcessorState& sta
 
         float output[OUTPUT_SIZE];
         auto t1 = std::chrono::steady_clock::now();
-        forward_pass_cnn(model_cnn, nn_input, output);
+        if (use_cnn) {
+            forward_pass_cnn(model_cnn, nn_input, output);
+        } else {
+            forward_pass_mlp(model_mlp, nn_input, output);
+        }
         auto t2 = std::chrono::steady_clock::now();
         state.elapsed = std::chrono::duration<double, std::milli>(t2 - t1).count();
 

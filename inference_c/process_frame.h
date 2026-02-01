@@ -10,7 +10,9 @@ struct FrameProcessorState {
     double elapsed = 0.0;
 };
 
-/** use_center_roi: if true, process only central 30%x60% (camera mode); if false, process full frame (image test mode). */
-void process_frame(cv::Mat& frame, CNNModel* model_cnn, FrameProcessorState& state, bool use_center_roi = true);
+// use_cnn: true = CNN (forward_pass_cnn), false = MLP (forward_pass_mlp).
+// use_center_roi: true = central 30%x60% (camera), false = full frame (image test).
+void process_frame(cv::Mat& frame, CNNModel* model_cnn, MLPModel* model_mlp, bool use_cnn,
+                   FrameProcessorState& state, bool use_center_roi = true);
 
 #endif // PROCESS_FRAME_H

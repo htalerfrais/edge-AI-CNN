@@ -33,12 +33,17 @@ int main(int argc, char** argv) {
 
     const char* model_path_mlp = "../models/mlp_model.txt";
     const char* model_path_cnn = "../models/cnn_model.txt";
+    const bool use_cnn = true;  /* true = CNN, false = MLP */
 
     MLPModel* model_mlp = load_mlp_model(model_path_mlp);
     CNNModel* model_cnn = load_cnn_model(model_path_cnn);
 
-    if (!model_cnn) {
-        std::cerr << "Erreur chargement modèle" << std::endl;
+    if (use_cnn && !model_cnn) {
+        std::cerr << "Erreur chargement modèle CNN" << std::endl;
+        return 1;
+    }
+    if (!use_cnn && !model_mlp) {
+        std::cerr << "Erreur chargement modèle MLP" << std::endl;
         return 1;
     }
 
@@ -80,7 +85,7 @@ int main(int argc, char** argv) {
 
     while (running && cap.read(frame)) {
         if (frame.empty()) continue;
-        process_frame(frame, model_cnn, frame_state);
+        process_frame(frame, model_cnn, model_mlp, use_cnn, frame_state);
         writer.write(frame);
         count++;
 
