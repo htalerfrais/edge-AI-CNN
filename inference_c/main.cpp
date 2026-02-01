@@ -12,6 +12,7 @@
 #include "contour_detection.h"
 #include "contour_selector.h"
 #include "digit_extractor.h"
+#include "process_frame.h"
 
 std::atomic<bool> running(true);
 void sigHandler(int) { running = false; }
@@ -30,8 +31,8 @@ int main(int argc, char** argv) {
 
     float output[OUTPUT_SIZE];
 
-    const char* model_path_mlp = "./mlp_model.txt";
-    const char* model_path_cnn = "./cnn_model.txt";
+    const char* model_path_mlp = "../models/mlp_model.txt";
+    const char* model_path_cnn = "../models/cnn_model.txt";
 
     MLPModel* model_mlp = load_mlp_model(model_path_mlp);
     CNNModel* model_cnn = load_cnn_model(model_path_cnn);
@@ -72,118 +73,14 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    FrameProcessorState frame_state;
     cv::Mat frame;
     int count = 0;
     auto t0 = std::chrono::steady_clock::now();
 
     while (running && cap.read(frame)) {
-        digitDetected = false;
         if (frame.empty()) continue;
-
-        // CENTRAL ROI (60% of image)
-        int roiW = frame.cols * 0.3;
-        int roiH = frame.rows * 0.6;
-        int roiX = (frame.cols - roiW) / 2;
-        int roiY = (frame.rows - roiH) / 2;
-
-        cv::Rect centerROI(roiX, roiY, roiW, roiH);
-        //cv::rectangle(frame, centerROI, cv::Scalar(255,0,0), 2); // blue ROI
-        cv::Mat roiFrame = frame(centerROI);
-
-        // PREPROCESSING
-        cv::Mat gray;
-        cv::cvtColor(roiFrame, gray, cv::COLOR_BGR2GRAY);
-
-        cv::Mat thresh;
-        cv::adaptiveThreshold(
-            gray, thresh, 255,
-            cv::ADAPTIVE_THRESH_GAUSSIAN_C,
-            cv::THRESH_BINARY_INV,
-            15, 5
-        );
-
-        // CONTOUR DETECTION
-        std::vector<std::vector<cv::Point>> contours;
-        contour_det_find_all(thresh, contours);
-        contour_det_draw(roiFrame, contours); // red contours
-
-        int bestIdx = contour_sel_find_best(contours);
-
-        // DIGIT FOUND
-        if (bestIdx >= 0) {
-            digitDetected = true;
-
-            cv::Rect box = cv::boundingRect(contours[bestIdx]);
-
-            //cv::rectangle(frame, box, cv::Scalar(0,255,0), 2); // green bounding box
-
-            // --- Extract digit (28x28) ---
-            cv::Mat digit28;
-            digit_extr_extract(thresh, box, digit28);
-
-            cv::Mat overlay;
-            int scale = 10;
-            cv::resize(digit28, overlay, cv::Size(28 * scale, 28 * scale), 0, 0, cv::INTER_NEAREST);
-            cv::cvtColor(overlay, overlay, cv::COLOR_GRAY2BGR);
-
-            // Show it in the video
-            overlay.copyTo(frame(cv::Rect(10, 10, overlay.cols, overlay.rows)));
-
-            float nn_input[784];
-            digit_extr_to_nn_input(digit28, nn_input);
-            
-            auto t1 = std::chrono::steady_clock::now();
-            forward_pass_cnn(model_cnn, nn_input, output);
-            auto t2 = std::chrono::steady_clock::now();
-            elapsed = std::chrono::duration<double, std::milli>(t2 - t1).count();
-
-            pred = get_prediction(output);
-
-            // Apply softmax
-            float sum_exp = 0.0f;
-            float prob[OUTPUT_SIZE];
-            for (int i = 0; i < OUTPUT_SIZE; i++) {
-                prob[i] = std::exp(output[i]);
-                sum_exp += prob[i];
-            }
-            for (int i = 0; i < OUTPUT_SIZE; i++)
-                prob[i] /= sum_exp;
-
-            confidence = prob[pred];
-
-            //const float CONF_THRESHOLD = 0.8f;
-
-            if (digitDetected && pred != last_pred) {
-                std::cout << "Prediction : " << pred 
-                        << " in " << elapsed << " ms."
-                        << " Confidence : " << confidence << std::endl;
-                last_pred = pred;
-            }
-
-            // --- Draw bounding box ---
-            // Global bounding box
-            cv::Rect globalBox(
-                box.x + centerROI.x,
-                box.y + centerROI.y,
-                box.width,
-                box.height
-            );
-            cv::rectangle(frame, globalBox, cv::Scalar(0,255,0), 2);
-
-
-            // --- Overlay prediction on bounding box ---
-            char text[32];
-            std::snprintf(text, sizeof(text), "%d (%.2f)", pred, confidence);
-            cv::putText(frame, text,
-                        cv::Point(globalBox.x + 2, globalBox.y + 20), // slightly offset from top-left
-                        cv::FONT_HERSHEY_SIMPLEX, 0.7,                // font size
-                        cv::Scalar(0,255,0),                          // green color
-                        2);                                           // thickness
-            
-        }
-
-        cv::rectangle(frame, centerROI, cv::Scalar(255,0,0), 2);
-
+        process_frame(frame, model_cnn, frame_state);
         writer.write(frame);
         count++;
 
@@ -193,10 +90,10 @@ int main(int argc, char** argv) {
             std::cout << "FPS: " << static_cast<int>(count / dt.count()) << std::endl;
             count = 0;
             t0 = now;
-            if(pred == last_pred){
-                std::cout << "Prediction : " << pred 
-                << " in " << elapsed << " ms."
-                << " Confidence : " << confidence << std::endl;
+            if (frame_state.last_pred >= 0) {
+                std::cout << "Prediction : " << frame_state.last_pred
+                          << " in " << frame_state.elapsed << " ms."
+                          << " Confidence : " << frame_state.confidence << std::endl;
             }
         }
     }
