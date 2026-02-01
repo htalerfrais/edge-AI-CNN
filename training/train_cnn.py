@@ -7,7 +7,8 @@ import torchvision
 import torchvision.transforms as transforms
 import PIL.Image as Image
 import os
-from torch.utils.data import ConcatDataset, DataLoader, random_split
+from pathlib import Path
+from torch.utils.data import ConcatDataset, DataLoader
 
 
 torch.random.manual_seed(0)
@@ -15,8 +16,12 @@ torch.random.manual_seed(0)
 # --- CONFIGURATION & MODÈLE ---
 torch.random.manual_seed(0)
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-PERSO_DATA_PATH = "../../data/mnist_digit/" # À adapter
+PERSO_TRAIN_PATH = "../data/mnist_digit_train"
+PERSO_VAL_PATH = "../data/mnist_digit_val"
+PERSO_TEST_PATH = "../data/mnist_digit_test"
 BATCH_SIZE = 64
+BASE_DIR = Path(__file__).resolve().parent
+MODELS_DIR = BASE_DIR / "models"
 
 class CNN(nn.Module):
     def __init__(self):
@@ -40,7 +45,7 @@ class CNN(nn.Module):
 # ---  CALCUL DES STATISTIQUES GLOBALES ---
 
 def get_global_stats():
-    # Transform minimal pour calcul
+    # Transform minimal pour calcul (sur train uniquement)
     base_tf = transforms.Compose([
         transforms.Grayscale(),
         transforms.Resize((28, 28)),
@@ -48,11 +53,7 @@ def get_global_stats():
     ])
     
     mnist_raw = torchvision.datasets.MNIST(root='./data', train=True, download=True, transform=base_tf)
-    perso_raw = torchvision.datasets.ImageFolder(root=PERSO_DATA_PATH, transform=base_tf)
-    
-    # On split pour ne calculer que sur la partie "train" du perso
-    train_len = int(0.8 * len(perso_raw))
-    perso_train_raw, _ = random_split(perso_raw, [train_len, len(perso_raw) - train_len])
+    perso_train_raw = torchvision.datasets.ImageFolder(root=PERSO_TRAIN_PATH, transform=base_tf)
     
     loader = DataLoader(ConcatDataset([mnist_raw, perso_train_raw]), batch_size=1024)
     
@@ -70,60 +71,73 @@ def get_global_stats():
 
 
 
-# Def training loop
-def train_model(model, train_loader, criterion, optimizer, num_epochs):
-    model.train()
-    
+# Def training loop (with validation each epoch)
+def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler, device, num_epochs):
+    train_losses, train_accs, val_losses, val_accs = [], [], [], []
+
     for epoch in range(num_epochs):
-        # the model sees all the batches, calculates a loss that aggregates for each batch process
-        running_loss = 0.0  
+        model.train()
+        running_loss = 0.0
         correct = 0
         total = 0
-        
-        # batch_idx n'exista pas au prealable, il est crée par le enumerate
+
         for batch_idx, (data, target) in enumerate(train_loader):
-            # for batch (here data is the data of a whole batch, target too) :
             data, target = data.to(device), target.to(device)
-            
-            # Zero gradients before doing grad update for this new batch 
             optimizer.zero_grad()
-            
-            # Forward pass and loss on the whole batch
             outputs = model(data)
             loss = criterion(outputs, target)
-            
-            # Backward pass for the whole batch
             loss.backward()
             optimizer.step()
-            
-            # Statistics
-            running_loss += loss.item() # loss s'accumulant sur touts les batchs
-            _, predicted = outputs.max(1) # prediction made on the batch
+
+            running_loss += loss.item()
+            _, predicted = outputs.max(1)
             total += target.size(0)
-            correct += predicted.eq(target).sum().item() # how much predictions were right within the data prediction in this current batch 
-            
+            correct += predicted.eq(target).sum().item()
+
             if batch_idx % 100 == 0:
                 print(f'Epoch [{epoch+1}/{num_epochs}], Batch [{batch_idx}/{len(train_loader)}], '
                       f'Loss: {loss.item():.4f}, Accuracy: {100.*correct/total:.2f}%')
-        
-        # Optional: Update learning rate
+
         scheduler.step()
-        
-        print(f'Epoch [{epoch+1}/{num_epochs}] completed, '
-              f'Average Loss: {running_loss/len(train_loader):.4f}, '
-              f'Accuracy: {100.*correct/total:.2f}%')
+        train_loss = running_loss / len(train_loader)
+        train_acc = 100.0 * correct / total
+        train_losses.append(train_loss)
+        train_accs.append(train_acc)
+
+        # Validation
+        model.eval()
+        val_loss = 0.0
+        val_correct = 0
+        val_total = 0
+        with torch.no_grad():
+            for data, target in val_loader:
+                data, target = data.to(device), target.to(device)
+                outputs = model(data)
+                val_loss += criterion(outputs, target).item()
+                _, predicted = outputs.max(1)
+                val_total += target.size(0)
+                val_correct += predicted.eq(target).sum().item()
+        val_loss /= len(val_loader)
+        val_acc = 100.0 * val_correct / val_total
+        val_losses.append(val_loss)
+        val_accs.append(val_acc)
+
+        print(f'Epoch [{epoch+1}/{num_epochs}] Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.2f}% | '
+              f'Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.2f}%')
+
+    return train_losses, train_accs, val_losses, val_accs
         
         
         
 # Def testing loop
 
-def test_model(model, test_loader, criterion):
-    model.eval()  # Set model to evaluation mode
+def test_model(model, test_loader, criterion, device):
+    model.eval()
     test_loss = 0.0
     correct = 0
     total = 0
-    
-    with torch.no_grad():  # Disable gradient computation for testing
+
+    with torch.no_grad():
         for data, target in test_loader:
             data, target = data.to(device), target.to(device)
             
@@ -145,11 +159,35 @@ def test_model(model, test_loader, criterion):
     return test_loss, accuracy
 
 
+def plot_metrics(train_losses, train_accs, val_losses, val_accs, save_path=None):
+    """Trace et sauvegarde les courbes loss et accuracy (train / val)."""
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
+    epochs = range(1, len(train_losses) + 1)
+    ax1.plot(epochs, train_losses, "b-", label="Train Loss")
+    ax1.plot(epochs, val_losses, "r-", label="Val Loss")
+    ax1.set_xlabel("Epoch")
+    ax1.set_ylabel("Loss")
+    ax1.legend()
+    ax1.set_title("Loss")
+    ax2.plot(epochs, train_accs, "b-", label="Train Acc")
+    ax2.plot(epochs, val_accs, "r-", label="Val Acc")
+    ax2.set_xlabel("Epoch")
+    ax2.set_ylabel("Accuracy (%)")
+    ax2.legend()
+    ax2.set_title("Accuracy")
+    plt.tight_layout()
+    if save_path is None:
+        save_path = MODELS_DIR / "metrics_cnn.png"
+    MODELS_DIR.mkdir(parents=True, exist_ok=True)
+    plt.savefig(str(save_path), dpi=150)
+    plt.close()
+    print(f"Courbes sauvegardées : {save_path}")
+
+
 def save_weights(model, file_name):
-    if not os.path.exists('models'):
-        os.makedirs('models')
-    path = os.path.join("models", file_name)
-    torch.save(model.state_dict(), path)
+    MODELS_DIR.mkdir(parents=True, exist_ok=True)
+    path = MODELS_DIR / file_name
+    torch.save(model.state_dict(), str(path))
     print(f"Poids du modèle CNN sauvegardés avec succès dans : {path}")    
     
 
@@ -175,37 +213,30 @@ if __name__ == "__main__":
     # Chargement MNIST
     mnist_train = torchvision.datasets.MNIST(root='./data', train=True, transform=final_tf)
 
-    # Chargement & Split Perso
-    perso_full = torchvision.datasets.ImageFolder(root=PERSO_DATA_PATH, transform=final_tf)
-    train_size = int(0.8 * len(perso_full))
-    perso_train, perso_test = random_split(perso_full, [train_size, len(perso_full) - train_size],
-                                        generator=torch.Generator().manual_seed(0))
+    # Chargement train / val / test (dossiers créés par utils/split_dataset.py)
+    perso_train = torchvision.datasets.ImageFolder(root=PERSO_TRAIN_PATH, transform=final_tf)
+    perso_val = torchvision.datasets.ImageFolder(root=PERSO_VAL_PATH, transform=final_tf)
+    perso_test = torchvision.datasets.ImageFolder(root=PERSO_TEST_PATH, transform=final_tf)
 
-    # Concaténation + Oversampling (Perso x50 pour équilibrer face aux 60k MNIST)
     train_dataset = ConcatDataset([mnist_train] + [perso_train] * 50)
     train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
+    val_loader = DataLoader(perso_val, batch_size=BATCH_SIZE, shuffle=False)
     test_loader = DataLoader(perso_test, batch_size=BATCH_SIZE, shuffle=False)
 
 
 
 
-    # instanciate model CNN
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     model = CNN().to(device)
-
-    # Definition of loss and optimizer
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
 
-
-
-
-    # call training and testing
-
     print("Starting training...")
-    train_model(model, train_loader, criterion, optimizer, num_epochs=5)
+    train_losses, train_accs, val_losses, val_accs = train_model(
+        model, train_loader, val_loader, criterion, optimizer, scheduler, device, num_epochs=10
+    )
+    plot_metrics(train_losses, train_accs, val_losses, val_accs)
     print("\nStarting testing...")
-    test_loss, test_accuracy = test_model(model, test_loader, criterion)
-    
+    test_loss, test_accuracy = test_model(model, test_loader, criterion, device)
     save_weights(model, "cnn_model.pt")

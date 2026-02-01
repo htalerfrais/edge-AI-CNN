@@ -3,10 +3,14 @@ import torch.nn as nn
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
-# from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 import numpy as np
 import os
-# from train_mlp import MinimalMLP
+from PIL import Image
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent
+MODELS_DIR = BASE_DIR / "models"
 
 
 class MinimalMLP(nn.Module):
@@ -82,31 +86,68 @@ def evaluate_local_dataset(model_path, data_dir):
     
     return all_labels, all_preds
 
-def plot_confusion_matrix(all_labels, all_preds):
-    """Génère la matrice de confusion pour le rapport [cite: 86, 233]"""
+def plot_confusion_matrix(all_labels, all_preds, save_path=None):
+    """Génère et sauvegarde la matrice de confusion."""
     if not all_labels:
         return
-        
     cm = confusion_matrix(all_labels, all_preds)
     fig, ax = plt.subplots(figsize=(10, 8))
     disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=np.arange(10))
-    disp.plot(cmap=plt.cm.Blues, ax=ax, values_format='d')
-    
-    plt.title('Matrice de Confusion - MLP (Dataset Personnel)')
-    plt.xlabel('Prédictions')
-    plt.ylabel('Labels Réels')
-    
-    # Sauvegarde dans le dossier models comme recommandé [cite: 91, 265]
-    os.makedirs("models", exist_ok=True)
-    save_path = "models/confusion_matrix_mlp.png"
-    plt.savefig(save_path)
-    print(f"\nMatrice de confusion sauvegardée dans : {save_path}")
-    plt.show()
+    disp.plot(cmap=plt.cm.Blues, ax=ax, values_format="d")
+    plt.title("Matrice de Confusion - MLP (dataset de test)")
+    plt.xlabel("Prédictions")
+    plt.ylabel("Labels réels")
+    plt.tight_layout()
+    if save_path is None:
+        save_path = MODELS_DIR / "confusion_matrix_mlp.png"
+    MODELS_DIR.mkdir(parents=True, exist_ok=True)
+    plt.savefig(str(save_path), dpi=150)
+    plt.close()
+    print(f"Matrice de confusion sauvegardée : {save_path}")
+
+
+def test_single_image(model_path, image_path):
+    """Inférence sur une image : affiche les scores de la dernière couche et la prédiction."""
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    transform = transforms.Compose([
+        transforms.Grayscale(num_output_channels=1),
+        transforms.Resize((28, 28)),
+        transforms.ToTensor(),
+        transforms.Normalize((0.1307,), (0.3081,)),
+    ])
+    raw_image = Image.open(image_path)
+    input_tensor = transform(raw_image).unsqueeze(0).to(device)  # [1, 1, 28, 28]
+
+    model = MinimalMLP().to(device)
+    model.load_state_dict(torch.load(model_path, map_location=device))
+    model.eval()
+
+    with torch.no_grad():
+        outputs = model(input_tensor)
+        scores = outputs[0]
+
+    _, predicted = torch.max(outputs, 1)
+    pred_val = predicted.item()
+
+    print("-" * 30)
+    print("Scores de la dernière couche :")
+    for i in range(len(scores)):
+        print(f"  Classe {i} = {scores[i].item():.4f}")
+    print("-" * 30)
+    print(f"Image : {image_path}")
+    print(f"Chiffre prédit : {pred_val}")
+    return pred_val
+
 
 if __name__ == "__main__":
-    MODEL_FILE = "models/mlp_model.pt"
-    DATA_PATH = "../../data/mnist_digit/" 
-    
-    labels, preds = evaluate_local_dataset(MODEL_FILE, DATA_PATH)
-    # if labels:
-        # plot_confusion_matrix(labels, preds)
+    MODEL_FILE = MODELS_DIR / "mlp_model.pt"
+    DATA_PATH = BASE_DIR.parent / "data" / "mnist_digit_test"
+    IMAGE_PATH = BASE_DIR.parent / "data" / "mnist_digit_test" / "2" / "digit_2_2.bmp"  # exemple
+
+    print("=== Test sur le dataset de test (MLP) ===\n")
+    labels, preds = evaluate_local_dataset(str(MODEL_FILE), str(DATA_PATH))
+    if labels:
+        plot_confusion_matrix(labels, preds)
+
+    print("\n=== Inférence sur une image (scores dernière couche) ===\n")
+    test_single_image(str(MODEL_FILE), str(IMAGE_PATH))
