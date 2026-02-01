@@ -51,8 +51,7 @@ int main(int argc, char** argv) {
 
     std::string capPipe =
         std::string("tcpclientsrc host=") + inHost + " port=" + std::to_string(inPort) + " ! "
-        "tsdemux ! h264parse ! avdec_h264 ! videoconvert ! video/x-raw,format=BGR ! "
-        // "h264parse ! avdec_h264 ! videoconvert ! video/x-raw,format=BGR ! " // for native pipeline on raspberry pi
+        "h264parse ! avdec_h264 ! videoconvert ! video/x-raw,format=BGR ! "
         "appsink drop=1 sync=0";
 
     std::string outPipe =

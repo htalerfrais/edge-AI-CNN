@@ -28,10 +28,10 @@ case "$1" in
       gst-launch-1.0 \
         v4l2src device=/dev/video0 ! \
         video/x-raw,width=1280,height=720,framerate=30/1 ! \
-        videoconvert ! queue ! \
-        x264enc tune=zerolatency speed-preset=ultrafast key-int-max=15 ! \
-        video/x-h264,profile=baseline ! h264parse config-interval=1 ! \
-        mpegtsmux ! tcpserversink host=127.0.0.1 port=5000 &
+        videoconvert ! \
+        x264enc tune=zerolatency speed-preset=ultrafast ! \
+        video/x-h264,streamformat=byte-stream ! \
+        tcpserversink host=127.0.0.1 port=5000 &
       echo $! > "$PIDFILE"
       sleep 2
     fi
