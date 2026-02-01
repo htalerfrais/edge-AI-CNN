@@ -13,7 +13,6 @@ from torch.utils.data import ConcatDataset, DataLoader
 
 torch.random.manual_seed(0)
 
-# --- CONFIGURATION & MODÈLE ---
 torch.random.manual_seed(0)
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 PERSO_TRAIN_PATH = "../data/mnist_digit_train"
@@ -42,10 +41,7 @@ class CNN(nn.Module):
         return out
 
 
-# ---  CALCUL DES STATISTIQUES GLOBALES ---
-
 def get_global_stats():
-    # Transform minimal pour calcul (sur train uniquement)
     base_tf = transforms.Compose([
         transforms.Grayscale(),
         transforms.Resize((28, 28)),
@@ -70,8 +66,6 @@ def get_global_stats():
     return mean / nb_samples, std / nb_samples
 
 
-
-# Def training loop (with validation each epoch)
 def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler, device, num_epochs):
     train_losses, train_accs, val_losses, val_accs = [], [], [], []
 
@@ -126,10 +120,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler
               f'Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.2f}%')
 
     return train_losses, train_accs, val_losses, val_accs
-        
-        
-        
-# Def testing loop
+
 
 def test_model(model, test_loader, criterion, device):
     model.eval()
@@ -140,18 +131,13 @@ def test_model(model, test_loader, criterion, device):
     with torch.no_grad():
         for data, target in test_loader:
             data, target = data.to(device), target.to(device)
-            
-            # Forward pass
             outputs = model(data)
             loss = criterion(outputs, target)
-            
-            # Statistics
             test_loss += loss.item()
             _, predicted = outputs.max(1)
             total += target.size(0)
             correct += predicted.eq(target).sum().item()
     
-    # Calculate final metrics
     test_loss /= len(test_loader)
     accuracy = 100. * correct / total
     
@@ -195,13 +181,9 @@ def save_weights(model, file_name):
 
 
 if __name__ == "__main__":
-
-    # --- DATASETS FINAUX ---
-    # transform with normalisation adapted to concatenated dataset
-
     print("Calcul des statistiques globales...")
     mean_val, std_val = get_global_stats()
-    print(f"Stats calculées : Mean={mean_val.item():.4f}, Std={std_val.item():.4f} \n !! à appliquer aussi pour l'inférence C !!")
+    print(f"Stats : Mean={mean_val.item():.4f}, Std={std_val.item():.4f}")
 
     final_tf = transforms.Compose([
         transforms.Grayscale(),

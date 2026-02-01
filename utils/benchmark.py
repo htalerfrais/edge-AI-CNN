@@ -10,10 +10,6 @@ from statistics import mean, median, stdev
 import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 
-# ============================
-# Configuration
-# ============================
-
 IMAGE_DIR = "../data/mnist_digit_test"          # Folder containing MNIST-like images
 MLP_MODEL_PATH = "../training/models/mlp_model.pt"
 CNN_MODEL_PATH = "../training/models/cnn_model.pt"
@@ -22,9 +18,6 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 MNIST_MEAN = 0.1307
 MNIST_STD = 0.3081
 
-# ============================
-# Models
-# ============================
 
 class MinimalMLP(nn.Module):
     def __init__(self):
@@ -60,33 +53,19 @@ class CNN(nn.Module):
         return out
 
 
-# ============================
-# Utilities
-# ============================
-
 def load_image(path):
-    """
-    Load a 28x28 MNIST-like image and apply MNIST normalization.
-    """
     img = Image.open(path).convert("L")
     img = img.resize((28, 28))
     img = np.array(img, dtype=np.float32) / 255.0
     img = (img - MNIST_MEAN) / MNIST_STD
-    return torch.tensor(img).unsqueeze(0).unsqueeze(0)  # [1,1,28,28]
+    return torch.tensor(img).unsqueeze(0).unsqueeze(0)
 
 
 def extract_label(filename):
-    """
-    Assumes filenames like: 5_001.png or 5.png
-    """
     return int(filename.split("_")[0])
 
 
 def benchmark_model(model, images, labels):
-    """
-    Runs inference on all images and collects benchmark metrics.
-    Also returns predicted labels for confusion matrix plotting.
-    """
     model.eval()
     times = []
     correct = 0
@@ -133,14 +112,10 @@ def plot_confusion_matrix(labels, preds, title="Confusion Matrix"):
     plt.title(title)
     plt.show()
 
-# ============================
-# Main
-# ============================
 
 def main():
     print(f"Running benchmark on device: {DEVICE}")
 
-    # Load models
     mlp = MinimalMLP()
     cnn = CNN()
     mlp.load_state_dict(torch.load(MLP_MODEL_PATH))
@@ -150,7 +125,6 @@ def main():
     mlp.to(DEVICE)
     cnn.to(DEVICE)
 
-    # Load dataset
     images = []
     labels = []
 
@@ -164,15 +138,13 @@ def main():
                 img_path = os.path.join(class_path, fname)
                 img = load_image(img_path).to(DEVICE)
                 images.append(img)
-                labels.append(int(class_name))  # use folder name as label
+                labels.append(int(class_name))
 
     print(f"Loaded {len(images)} images")
 
-    # Run benchmarks
     mlp_results, mlp_preds = benchmark_model(mlp, images, labels)
     cnn_results, cnn_preds = benchmark_model(cnn, images, labels)
 
-    # Display results
     print("\n===== BENCHMARK RESULTS =====\n")
 
     def print_results(name, r):
@@ -191,8 +163,6 @@ def main():
     print_results("MLP", mlp_results)
     print_results("CNN", cnn_results)
 
-
-    # Plot confusion matrices
     plot_confusion_matrix(labels, mlp_preds, title="MLP Confusion Matrix")
     plot_confusion_matrix(labels, cnn_preds, title="CNN Confusion Matrix")
 

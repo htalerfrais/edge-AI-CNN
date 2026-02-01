@@ -11,31 +11,21 @@ MLPModel* load_mlp_model(const char *filename) {
         return NULL;
     }
 
-    // Allocation de la structure principale
     MLPModel *model = (MLPModel*)malloc(sizeof(MLPModel));
-
-    // Allocation de la mémoire pour chaque couche via les dimensions renseignées dans neural_network.h
     model->W1 = (float*)malloc(HIDDEN_SIZE * INPUT_SIZE * sizeof(float));
     model->b1 = (float*)malloc(HIDDEN_SIZE * sizeof(float));
     model->W2 = (float*)malloc(OUTPUT_SIZE * HIDDEN_SIZE * sizeof(float));
     model->b2 = (float*)malloc(OUTPUT_SIZE * sizeof(float));
 
-    // Lecture des Poids Couche 1
     for (int i = 0; i < HIDDEN_SIZE * INPUT_SIZE; i++) {
         if (fscanf(file, "%f", &model->W1[i]) != 1) break;
     }
-
-    // Lecture des Biais Couche 1
     for (int i = 0; i < HIDDEN_SIZE; i++) {
         if (fscanf(file, "%f", &model->b1[i]) != 1) break;
     }
-
-    // Lecture des Poids Couche 2
     for (int i = 0; i < OUTPUT_SIZE * HIDDEN_SIZE; i++) {
         if (fscanf(file, "%f", &model->W2[i]) != 1) break;
     }
-
-    // Lecture des Biais Couche 2
     for (int i = 0; i < OUTPUT_SIZE; i++) {
         if (fscanf(file, "%f", &model->b2[i]) != 1) break;
     }
@@ -57,52 +47,34 @@ void free_mlp_model(MLPModel *model) {
 
 
 void forward_pass_mlp(MLPModel *model, float *input, float *output) {
-    // 1. Couche Cachée (Hidden Layer) : 512 neurones
     float hidden[HIDDEN_SIZE];
 
     for (int i = 0; i < HIDDEN_SIZE; i++) {
-        // Initialisation avec le biais b1
         float sum = model->b1[i];
-        
-        // Produit scalaire : Poids W1 * Entrée
         for (int j = 0; j < INPUT_SIZE; j++) {
-            // W1 est stocké à plat : index = i * largeur + j
             sum += model->W1[i * INPUT_SIZE + j] * input[j];
         }
-        
-        // Application de l'activation ReLU
         hidden[i] = relu(sum);
     }
 
-    // 2. Couche de Sortie (Output Layer) : 10 neurones
     for (int i = 0; i < OUTPUT_SIZE; i++) {
-        // Initialisation avec le biais b2
         float sum = model->b2[i];
-        
-        // Produit scalaire : Poids W2 * Sortie de la couche cachée
         for (int j = 0; j < HIDDEN_SIZE; j++) {
             sum += model->W2[i * HIDDEN_SIZE + j] * hidden[j];
         }
-        
-        // Stockage du résultat final (Scores/Logits)
         output[i] = sum;
     }
 }
 
 
-// --- Fonction interne de lecture sécurisée ---
-// Cette fonction vérifie que chaque nombre est bien lu. 
-// Si fscanf échoue, elle renvoie 0, sinon 1.
 static int read_weights(FILE *file, float *buffer, int count) {
     for (int i = 0; i < count; i++) {
         if (fscanf(file, "%f", &buffer[i]) != 1) {
-            return 0; // Erreur de lecture
+            return 0;
         }
     }
-    return 1; // Succès
+    return 1;
 }
-
-// --- Chargement et Libération ---
 
 CNNModel* load_cnn_model(const char *filename) {
     FILE *file = fopen(filename, "r");
@@ -114,7 +86,6 @@ CNNModel* load_cnn_model(const char *filename) {
     CNNModel *model = (CNNModel*)malloc(sizeof(CNNModel));
     if (!model) return NULL;
 
-    // Allocation des couches
     model->conv1_w = (float*)malloc(C1_OUT_CH * C1_IN_CH * KERNEL_SIZE * KERNEL_SIZE * sizeof(float));
     model->conv1_b = (float*)malloc(C1_OUT_CH * sizeof(float));
     model->conv2_w = (float*)malloc(C2_OUT_CH * C2_IN_CH * KERNEL_SIZE * KERNEL_SIZE * sizeof(float));
@@ -122,16 +93,13 @@ CNNModel* load_cnn_model(const char *filename) {
     model->fc_w    = (float*)malloc(OUTPUT_SIZE * FC_IN_FEATURES * sizeof(float));
     model->fc_b    = (float*)malloc(OUTPUT_SIZE * sizeof(float));
 
-    // Lecture sécurisée des poids (Méthode Option B)
     int success = 1;
     success &= read_weights(file, model->conv1_w, C1_OUT_CH * C1_IN_CH * KERNEL_SIZE * KERNEL_SIZE);
     success &= read_weights(file, model->conv1_b, C1_OUT_CH);
-    
     success &= read_weights(file, model->conv2_w, C2_OUT_CH * C2_IN_CH * KERNEL_SIZE * KERNEL_SIZE);
     success &= read_weights(file, model->conv2_b, C2_OUT_CH);
-    
-    success &= read_weights(file, model->fc_w,    OUTPUT_SIZE * FC_IN_FEATURES);
-    success &= read_weights(file, model->fc_b,    OUTPUT_SIZE);
+    success &= read_weights(file, model->fc_w, OUTPUT_SIZE * FC_IN_FEATURES);
+    success &= read_weights(file, model->fc_b, OUTPUT_SIZE);
 
     fclose(file);
 
@@ -157,10 +125,7 @@ void free_cnn_model(CNNModel *model) {
     }
 }
 
-// --- Moteur d'inférence (Forward Pass) ---
-
 void forward_pass_cnn(CNNModel *model, float *input, float *output) {
-    // 1. Couche Conv1 : Input 1x28x28 -> Output 16x14x14 (Stride 2, Padding 2)
     float layer1_out[C1_OUT_CH * C1_SIZE * C1_SIZE];
     
     for (int och = 0; och < C1_OUT_CH; och++) {
@@ -186,7 +151,6 @@ void forward_pass_cnn(CNNModel *model, float *input, float *output) {
         }
     }
 
-    // 2. Couche Conv2 : Input 16x14x14 -> Output 32x7x7 (Stride 2, Padding 2)
     float layer2_out[C2_OUT_CH * C2_SIZE * C2_SIZE];
 
     for (int och = 0; och < C2_OUT_CH; och++) {
@@ -214,7 +178,6 @@ void forward_pass_cnn(CNNModel *model, float *input, float *output) {
         }
     }
 
-    // 3. Couche FC (Fully Connected) : Input 1568 (32*7*7) -> Output 10
     for (int i = 0; i < OUTPUT_SIZE; i++) {
         float sum = model->fc_b[i];
         for (int j = 0; j < FC_IN_FEATURES; j++) {
@@ -224,15 +187,13 @@ void forward_pass_cnn(CNNModel *model, float *input, float *output) {
     }
 }
 
-// --- Fonctions utilitaires ---
-
-float relu(float x) { return x > 0 ? x : 0; }
+float relu(float x) { 
+    return x > 0 ? x : 0; 
+}
 
 int get_prediction(float *output) {
     int best_class = 0;
     float max_val = output[0];
-    
-    // recherche de max parmis toutes les output classes
     for (int i = 1; i < OUTPUT_SIZE; i++) {
         if (output[i] > max_val) {
             max_val = output[i];

@@ -1,15 +1,9 @@
-"""
-Crée les trois dossiers train/val/test à partir de data/mnist_digit/
-avec un split stratifié (par classe). Structure ImageFolder conservée.
-Dépendance : scikit-learn (pip install scikit-learn)
-Exécution : python3 utils/split_dataset.py
-"""
+"""Split stratifié du dataset en train/val/test."""
 import shutil
 from pathlib import Path
 
 from sklearn.model_selection import train_test_split
 
-# Chemins relatifs au dossier du script : on remonte au projet (parent de utils/)
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent
 SOURCE_DIR = PROJECT_ROOT / "data" / "mnist_digit"
@@ -17,17 +11,12 @@ OUT_TRAIN = PROJECT_ROOT / "data" / "mnist_digit_train"
 OUT_VAL = PROJECT_ROOT / "data" / "mnist_digit_val"
 OUT_TEST = PROJECT_ROOT / "data" / "mnist_digit_test"
 
-# Paramètres du split (en dur)
 SEED = 0
-TRAIN_RATIO = 0.8   # 80 % train
-VAL_RATIO = 0.1     # 10 % val, 10 % test
+TRAIN_RATIO = 0.8
+VAL_RATIO = 0.1
 
 
 def collect_images_by_class(source_dir):
-    """
-    Parcourt source_dir (structure 0/, 1/, ..., 9/) et retourne
-    listes (paths, labels) pour un split stratifié.
-    """
     paths = []
     labels = []
     source_dir = Path(source_dir)
@@ -50,8 +39,6 @@ def collect_images_by_class(source_dir):
 
 
 def split_indices_stratified(paths, labels, train_ratio, val_ratio, seed):
-    """Split stratifié avec sklearn : train_ratio train, val_ratio val, le reste en test."""
-    # Premier split : train vs (val+test)
     train_paths, rest_paths, train_labels, rest_labels = train_test_split(
         paths, labels,
         train_size=train_ratio,
@@ -59,7 +46,6 @@ def split_indices_stratified(paths, labels, train_ratio, val_ratio, seed):
         random_state=seed,
         shuffle=True,
     )
-    # Deuxième split : val vs test (50/50 du reste pour avoir val_ratio et test_ratio)
     val_ratio_rest = val_ratio / (1 - train_ratio)
     val_paths, test_paths, val_labels, test_labels = train_test_split(
         rest_paths, rest_labels,
@@ -88,7 +74,6 @@ def main():
 
     print(f"Split: train={len(train_paths)}, val={len(val_paths)}, test={len(test_paths)}")
 
-    # Créer les dossiers et copier
     for out_dir in (OUT_TRAIN, OUT_VAL, OUT_TEST):
         out_dir.mkdir(parents=True, exist_ok=True)
         for c in out_dir.iterdir():

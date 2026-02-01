@@ -8,7 +8,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY inference_c models ./
+COPY inference_c/ ./
+COPY models/ ./
 RUN make
 
 ENTRYPOINT ["./app"]

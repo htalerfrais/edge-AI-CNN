@@ -17,7 +17,7 @@ MODELS_DIR = BASE_DIR / "models"
 def evaluate_local_dataset(model_path, data_dir):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
-    # Prétraitement pour format MNIST (28x28, niveaux de gris) [cite: 168, 202]
+    # Prétraitement MNIST (28x28, grayscale)
     transform = transforms.Compose([
         transforms.Grayscale(num_output_channels=1),
         transforms.Resize((28, 28)),
@@ -63,7 +63,6 @@ def evaluate_local_dataset(model_path, data_dir):
             if is_correct:
                 correct += 1
             
-            # Affichage au fur et à mesure dans le terminal
             status = "✅" if is_correct else "❌"
             print(f"n°{i+1:<8} | {label_val:<6} | {pred_val:<6} | {status}")
 

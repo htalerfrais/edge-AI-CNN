@@ -1,5 +1,4 @@
-# ce fichier sert à exporter les poids des modèles pt générés avec les entrainement en pytorch
-# pour les avoir dans un format exploitable par notre moteur d'inférence C
+# Export des poids PyTorch vers format texte
 
 import torch
 import torch.nn as nn

@@ -8,7 +8,6 @@ import matplotlib.pyplot as plt
 import os
 from pathlib import Path
 
-# --- CONFIGURATION & MODELE ---
 torch.random.manual_seed(0)
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
 PERSO_TRAIN_PATH = "../data/mnist_digit_train"
@@ -32,7 +31,7 @@ class MinimalMLP(nn.Module):
         x = self.flatten(x)
         return self.layers(x)
 
-# --- CALCUL DES STATISTIQUES GLOBALES (sur train uniquement) ---
+
 def get_global_stats():
     base_tf = transforms.Compose([
         transforms.Grayscale(),
@@ -149,12 +148,10 @@ def test():
 
 
 if __name__ == "__main__":
-
     print("Calcul des statistiques globales (MNIST + Perso)...")
     mean_val, std_val = get_global_stats()
     print(f"Stats : Mean={mean_val.item():.4f}, Std={std_val.item():.4f}")
 
-    # --- PREPARATION DES DATASETS ---
     final_tf = transforms.Compose([
         transforms.Grayscale(),
         transforms.Resize((28, 28)),
@@ -172,7 +169,6 @@ if __name__ == "__main__":
     val_loader = DataLoader(perso_val, batch_size=BATCH_SIZE, shuffle=False)
     test_loader = DataLoader(perso_test, batch_size=BATCH_SIZE, shuffle=False)
 
-    # --- ENTRAINEMENT & TEST ---
     model = MinimalMLP().to(DEVICE)
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=0.001)

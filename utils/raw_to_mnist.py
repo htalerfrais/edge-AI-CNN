@@ -3,25 +3,20 @@ import numpy as np
 import os
 
 def convert_to_mnist(image_path):
-    # 1. Load the image in grayscale
     img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
     
     if img is None:
         raise ValueError("Image not found or path is incorrect")
     
-    # 2. Invert if necessary (MNIST: digit is white on black background)
-    if np.mean(img) > 127:  # mostly white background
+    if np.mean(img) > 127:
         img = 255 - img
     
-    # 3. Threshold to make sure digit is clear
     _, img = cv2.threshold(img, 127, 255, cv2.THRESH_BINARY)
     
-    # 4. Find bounding box of the digit
     coords = cv2.findNonZero(img)
     x, y, w, h = cv2.boundingRect(coords)
     digit = img[y:y+h, x:x+w]
     
-    # 5. Resize while keeping aspect ratio
     if w > h:
         new_w = 20
         new_h = int(h * (20 / w))
@@ -31,7 +26,6 @@ def convert_to_mnist(image_path):
     
     digit_resized = cv2.resize(digit, (new_w, new_h), interpolation=cv2.INTER_AREA)
     
-    # 6. Pad to 28x28
     top = (28 - new_h) // 2
     bottom = 28 - new_h - top
     left = (28 - new_w) // 2
@@ -42,9 +36,8 @@ def convert_to_mnist(image_path):
     return mnist_img
 
 
-
-input_root = "./custom_mnist_perso_new/"    # Dossier source contenant les sous-dossiers 0, 1, 2...
-output_root = "./bdd-mnist/" # Dossier de destination
+input_root = "./custom_mnist_perso_new/"
+output_root = "./bdd-mnist/"
 
 for digit_folder in range(10):
     digit_str = str(digit_folder)
